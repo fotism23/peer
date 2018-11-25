@@ -24,7 +24,7 @@ peerCount = 0
 # DONE - PARSE ARGUMENTS
 def parse_args():
     usage = """usage: %prog [options] hostname pid port
-	python peer.py 127.0.0.1 0 2487 """
+    python peer.py 127.0.0.1 0 2487 """
 
     parser = optparse.OptionParser(usage)
 
@@ -49,11 +49,17 @@ def getRandomWaitingTime():
     return random.uniform(Const.MIN_DELAY, Const.MAX_DELAY)
 
 
+def sortMessages():
+    global messages
+    messages = sorted(messages, key=lambda e: (e.timestamp, e.pid))
+
+
 class Peer(Protocol):
     acks = 0
     peerId = -1
     messageCounter = 0
     lamportClocks = []
+    buffer = []
 
     def __init__(self, factory, pid):
         self.pid = pid
@@ -74,20 +80,23 @@ class Peer(Protocol):
         for i in range(0, Const.NUMBER_OF_PEERS):
             self.lamportClocks.append(0.0)
 
+    def advanceMyClock(self):
+        self.lamportClocks[self.pid] += 1.0
+
     def sendUpdate(self):
 
         print "Sending Message"
 
-        self.lamportClocks[self.pid] += 1
+        self.advanceMyClock()
 
-        message = Message(Const.MESSAGE_TYPE_NORMAL, self.pid, self.lamportClocks[self.pid], counter=self.messageCounter)
+        message = Message(messageType=Const.MESSAGE_TYPE_NORMAL, senderId=self.pid,
+                          timestamp=self.lamportClocks[self.pid], counter=self.messageCounter)
 
         try:
 
             for i in range(0, peerCount):
 
                 if peerList[i] != self.transport:
-
                     peerList[i].transport.write(message.toString())
 
             self.messageCounter += 1
@@ -97,23 +106,47 @@ class Peer(Protocol):
             print "Exception trying to send: ", ex1.args[0]
 
         if self.connected & self.messageCounter <= Const.MESSAGE_LIMIT:
-
             reactor.callLater(getRandomWaitingTime(), self.sendUpdate())
+
+    def deliver(self):
+        notDeliverMessageList = []
+        for message in messages:
+            flag = 0
+            for nodeClock in lamportClocks:
+                if message.timestamp <= nodeClock:
+                    flag += 1
+            if flag == 3:
+                print(message.toString())
+            else:
+                notDeliverMessageList.append(message)
+        for i in range(0, len(messages)):
+            messages.pop()
+        for i in notDeliverMessageList:
+            messages.append(i)
 
     def sendAck(self):
         print 'send Ack'
-        self.ts = time.time()
+        # self.ts = time.time()
         try:
             for peer in peerList:
-                message = Message(Const.MESSAGE_TYPE_ACK, self.pid, 1, self.lamportClock[self.pid])
+                message = Message(messageType=Const.MESSAGE_TYPE_ACK, senderId=self.pid,
+                                  timestamp=self.lamportClock[self.pid])
                 peer.transport.write(message.toString())
         except Exception, e:
             print e.args[0]
 
     def dataReceived(self, data):
-        message = Message(data)
-        self.lamportClock[self.pid] = max(message.timestamp, self.lamportClock[self.pid]) + 1
+        message = Message(messageString=data)
+        if message.type == Const.MESSAGE_TYPE_NORMAL:
+            messages.append(message)
+            self.advanceMyClock()
+            self.sendAck()
+        else:
+            self.acks += 1
+        self.lamportClocks[self.pid] = max(message.timestamp, self.lamportClock[self.pid]) + 1
         self.lamportClocks[message.senderId] = message.timestamp
+        sortMessages()
+        self.deliver()
 
     # TODO CHECK FOR CONNECTED VARIABLE
     def connectionLost(self, reason):
@@ -132,7 +165,7 @@ class Message:
     messageType = 0
     timestamp = 0.0
 
-    def __init__(self, messageType, senderId, timestamp, counter=None, messageString=None):
+    def __init__(self, messageType=None, senderId=None, timestamp=None, counter=None, messageString=None):
         if messageString is None:
             self.type = messageType
             self.timestamp = timestamp
@@ -143,7 +176,7 @@ class Message:
                 messages.append(self)
         else:
             if isAck(messageString):
-                _, self.senderId, self.timestamp,  = messageString.split(':')
+                _, self.senderId, self.timestamp, = messageString.split(':')
                 self.messageType = Const.MESSAGE_TYPE_ACK
             else:
                 _, self.counter, self.senderId, self.timestamp = messageString.split(':')
@@ -167,7 +200,6 @@ class Const:
 
 # DONE
 class PeerFactory(ClientFactory):
-
     def __init__(self, peertype, pid):
         print '@__init__'
         self.pt = peertype

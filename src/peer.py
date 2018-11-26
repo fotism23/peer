@@ -239,7 +239,6 @@ class PeerFactory(ClientFactory):
         return protocol
 
 
-# TODO IMPLEMENT THIS
 if __name__ == '__main__':
     host, pid, port = parse_args()
 

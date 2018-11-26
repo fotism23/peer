@@ -55,10 +55,9 @@ def sortMessages():
 class Peer(Protocol):
     acks = 0
     connected = False
-    peerId = -1
     messageCounter = 0
     lamportClocks = []
-    buffer = []
+    pid = -1
 
     def __init__(self, factory, pid, fp):
         self.pid = pid
@@ -71,11 +70,10 @@ class Peer(Protocol):
         peerCount = peerCount + 1
         self.connected = True
 
-        print "Connected from ", self.transport.client
         peerList.append(self)
 
         if shouldBeginSending():
-            self.sendMessage()
+            self.sendUpdate()
 
     def initializeLamportClock(self):
         for i in range(0, Const.NUMBER_OF_PEERS):
@@ -225,17 +223,15 @@ class PeerFactory(ClientFactory):
 
     def startFactory(self):
         print "@startFactory"
-        if self.pt == 'server':
-            self.fp = open(self.fname, 'w+')
+        self.fp = open(self.fname, 'w+')
 
     def stopFactory(self):
         print "@stopFactory"
-        if self.pt == 'server':
-            self.fp.close()
+        self.fp.close()
 
     def buildProtocol(self, addr):
         print "@buildProtocol"
-        protocol = Peer(self, self.pt, self.fp)
+        protocol = Peer(self, self.pid, self.fp)
         return protocol
 
 
@@ -244,21 +240,21 @@ if __name__ == '__main__':
 
     if pid == '0':
         print "Start listening : Waiting for peers to connect @" + host + ":" + str(port)
-        factory = PeerFactory('pid_0', pid)
+        factory = PeerFactory('pid_0', int(pid))
         reactor.listenTCP(int(port), factory)
     elif pid == '1':
         print "Connecting to host peer 0 @" + host + ":" + str(port)
-        factory = PeerFactory('pid_1', pid)
-        reactor.connectTCP(host, port, factory)
+        factory = PeerFactory('pid_1', int(pid))
+        reactor.connectTCP(host, int(port), factory)
         print "Start listening : Waiting for peer 2 to connect @" + host + ":" + str(port)
-        factory = PeerFactory('pid_1', pid)
-        reactor.listenTCP(host, port, factory)
+        factory = PeerFactory('pid_1', int(pid))
+        reactor.listenTCP(int(port), factory)
     elif pid == '2':
         print "Connecting to host peer 0 @" + host + ":" + str(port)
-        factory = PeerFactory('pid_2', pid)
-        reactor.connectTCP(host, port, factory)
+        factory = PeerFactory('pid_2', int(pid))
+        reactor.connectTCP(host, int(port), factory)
         print "Connecting to host peer 1 @" + host + ":" + str(port)
-        factory = PeerFactory('pid_2', pid)
-        reactor.connectTCP(host, port, factory)
+        factory = PeerFactory('pid_2', int(pid))
+        reactor.connectTCP(host, int(port), factory)
 
     reactor.run()

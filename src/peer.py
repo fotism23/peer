@@ -123,7 +123,7 @@ class Peer(Protocol):
         messages = notDeliveredMessages[:]
 
     def writeMessage(self, message):
-        pass
+        self.fp.write(message + '\n')
 
     def sendAck(self):
         print 'Sending Ack'

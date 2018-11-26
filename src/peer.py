@@ -1,10 +1,7 @@
+# Fotis Mitropoulos 2486 cse32486@cs.uoi.gr
+# Nikos Filakis 2385 cs122385@cs.uoi.gr
 #
-# Event-driven code that behaves as either a client or a server
-# depending on the argument.  When acting as client, it connects
-# to a server and periodically sends an update message to it.
-# Each update is acked by the server.  When acting as server, it
-# periodically accepts messages from connected clients.  Each
-# message is followed by an acknowledgment.
+# Total Order Multicasting
 #
 # Tested with Python 2.7.8 and Twisted 14.0.2
 #
